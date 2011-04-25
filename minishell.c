@@ -293,21 +293,15 @@ proc_list *parse_proc(char *cmd){
 	return ret;
 }
 
-void print_proc(proc_list *x){
+void free_proc(proc_list *x){
 	if(!x) return;
 	int i;
-	for(i=0;x->argv[i];i++){
-		printf("argv[%d] : %s\n",i,x->argv[i]);
+	for(i=0;x->argv[i] != NULL;i++)
 		free(x->argv[i]);
-	}
 	free(x->argv);
-	if(x->redir_type){
-		printf("Redir Type :%d\n",x->redir_type);
-		printf("Redir File :%s\n",x->redir);
+	if(x->redir_type != 0)
 		free(x->redir);
-	}
-	if(x->next){ printf("== Next Proc ==\n"); print_proc(x->next);}
-	else{printf("==Proc End==\n");}
+	if(x->next) free_proc(x->next);
 	free(x);
 }
 
@@ -343,34 +337,36 @@ void exec_proc(proc_list *proclist){
 				dup2(ifile,STDIN_FILENO);
 				close(ifile);
 			}
-			if(ofile != STDOUT_FILENO){
+ 		if(ofile != STDOUT_FILENO){
 				dup2(ofile,STDOUT_FILENO);
 				close(ofile);
 			}
-			execvp(proclist->argv[0],proclist->argv);
+			if(execvp(proclist->argv[0],proclist->argv)<0)
+				fprintf(stderr,"command not found\n");
 			exit(1);
 		}else{ //Parent
 			if(proclist->run_background == 0){
-				wait(&status);
+				waitpid(pid,&status,0);
 			}else{
+				waitpid(pid,&status,WNOHANG);
 			}
 		}
 		if(ifile != STDIN_FILENO) close(ifile);
 		if(ofile != STDOUT_FILENO) close(ofile);
-		if(proclist->next) ifile = fd[0];
+		ifile = fd[0];
 		proclist = proclist->next;
 	}
 }
 void execute(char *cmd){
-	printf("EXECUTE CMD: %s\n",cmd);
 	proc_list *proclist = parse_proc(cmd);
 	exec_proc(proclist);
-	//print_proc(proclist);
+	free_proc(proclist);
 }
 
 int main(){
 	char *cmd;
 	exec_list *execlist,*ptr;
+	int status;
 	while(1){
 		cmd = get_prompt();
 		if(strcmp(cmd,"exit") == 0){free(cmd); break;}
@@ -386,8 +382,10 @@ int main(){
 				execlist = ptr;
 			}
 		}
+		waitpid(-1,&status,WNOHANG);
 		
 	}
+	waitpid(-1,&status,WNOHANG);
 	return 0;
 }
 
