@@ -4,6 +4,8 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <malloc.h>
+#include <fcntl.h>
+#include <wait.h>
 
 typedef struct command{
 	char *proc_name;
@@ -255,6 +257,12 @@ proc_list *parse_proc(char *cmd){
 	ptrcmd = (char *)malloc(sizeof(char)*(strlen(str)+1));
 	strcpy(ptrcmd,str);
 	trim(ptrcmd);
+	if(ptrcmd[strlen(ptrcmd)-1] == '&'){
+		ptrcmd[strlen(ptrcmd)-1] = 0;
+		ptr->run_background = 1;
+	}else{
+		ptr->run_background = 0;
+	}
 	if((pt=strstr(ptrcmd,">>") != NULL)){
 		ptr->redir_type = 3;
 	}else if((pt=strchr(ptrcmd,'>')) != NULL){
@@ -304,11 +312,53 @@ void print_proc(proc_list *x){
 }
 
 void exec_proc(proc_list *proclist){
-	int pip;
-	int ifile,ofile;
+	int fd[2];
+	int ifile,ofile,pid,status;
+	ifile = STDIN_FILENO;
 	while(proclist){
 		if(proclist->next){
+			if(pipe(fd) < 0){
+				fprintf(stderr,"Pipe Creation Failed\n");
+				exit(1);
+			}
+			ofile = fd[1];
+		}else{
+			ofile = STDOUT_FILENO;
 		}
+		if(proclist->redir_type !=0){
+			if(proclist->redir_type == 1){
+				ifile = open(proclist->redir,O_RDONLY);
+			}else if(proclist->redir_type == 2){
+				ofile = open(proclist->redir,O_WRONLY | O_CREAT, 0644);
+			}else if(proclist->redir_type == 3){
+				ofile = open(proclist->redir,O_APPEND | O_CREAT, 0644);
+			}
+		}
+		pid = fork();
+		if(pid < 0){
+			fprintf(stderr,"Fork Failed\n");
+			exit(1);
+		}else if(pid == 0){ //Child
+			if(ifile != STDIN_FILENO){
+				dup2(ifile,STDIN_FILENO);
+				close(ifile);
+			}
+			if(ofile != STDOUT_FILENO){
+				dup2(ofile,STDOUT_FILENO);
+				close(ofile);
+			}
+			execvp(proclist->argv[0],proclist->argv);
+			exit(1);
+		}else{ //Parent
+			if(proclist->run_background == 0){
+				wait(&status);
+			}else{
+			}
+		}
+		if(ifile != STDIN_FILENO) close(ifile);
+		if(ofile != STDOUT_FILENO) close(ofile);
+		if(proclist->next) ifile = fd[0];
+		proclist = proclist->next;
 	}
 }
 void execute(char *cmd){
