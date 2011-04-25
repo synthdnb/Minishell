@@ -79,18 +79,49 @@ exec_list *parse_wildcards(char *cmd){
 		}
 
 	}else if(strchr(cmd,'*') != NULL){
-		char *x = strchr(cmd,'*');
-		while( x != cmd && *x != '<' && *x != '>' && *x != ' ' && *x != '|' )
-			x--;
+		int len1,len2;
+		char *st,*ed,*p;
+
+		p = strchr(cmd,'*');
+
+		ed = p;
+		while(*ed != '\n' && *ed != 0 && *ed != '<' && *ed != '>' && *ed != ' ' && *ed != '|' )
+			ed++;
+		len2 = ed-p-1;
+
+		st = p;
+		while( st != cmd && *st != '\n' && *st != 0 && *st != '<' && *st != '>' && *st != ' ' && *st != '|' )
+			st--;
+		len1 = p-st-1;
+		if( st == cmd ) len1++;
+		else st++;
+
 		dp = opendir(get_current_dir_name());
+
+		printf("%d %d\n",len1,len2);
 		if(dp != NULL){
 			while(1){
 				item = readdir(dp);
 				if(item == NULL) break;
-//				strchr(
-				printf("DIR : %s\n",item->d_name);
+				if(ed-st-1 <= strlen(item->d_name) && strmatch(st,item->d_name,len1) && strmatch(p+1,item->d_name+strlen(item->d_name)-len2,len2)){
+					if( ret == NULL ){
+						ptr = (exec_list *)malloc(sizeof(exec_list));
+						ret = ptr;
+					}else{
+						ptr->next = (exec_list *)malloc(sizeof(exec_list));
+						ptr = ptr->next;
+					}
+					int newlen = strlen(cmd)-(ed-st)+strlen(item->d_name)+1;
+					ptr->cmd = (char *)malloc(sizeof(char)*newlen);
+					strncpy(ptr->cmd,cmd,st-cmd);
+					strncpy(ptr->cmd+(st-cmd),item->d_name,strlen(item->d_name));
+					strncpy(ptr->cmd+(st-cmd)+strlen(item->d_name),ed,strlen(ed));
+					printf("CMD : %s",ptr->cmd);
+					ptr->next = NULL;
+				}
 			}
 		}
+
 	}else{
 		ret = (exec_list *)malloc(sizeof(exec_list));
 		ret->cmd = (char *)malloc(sizeof(char)*strlen(cmd));
