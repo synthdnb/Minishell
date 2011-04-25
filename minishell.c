@@ -8,11 +8,6 @@
 #include <wait.h>
 #include <stdlib.h>
 
-typedef struct command{
-	char *proc_name;
-	char **argv;
-} command;
-
 void trim(char *buf){
 	char *x;
 	int i,len;
@@ -362,7 +357,7 @@ void exec_proc(proc_list *proclist){
 				close(ofile);
 			}
 			if(execvp(proclist->argv[0],proclist->argv)<0)
-				fprintf(stderr,"command not found\n");
+				fprintf(stderr,"Command Not Found\n");
 			exit(1);
 		}else{ //Parent
 			if(proclist->run_background == 0){
